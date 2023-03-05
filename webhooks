@@ -1,0 +1,344 @@
+
+//Logout
+
+add_action( 'rest_api_init', 'register_api_hooks_logout' );
+function register_api_hooks_logout() {
+  register_rest_route(
+     'webanapi/v1', '/logout',
+    array(
+      'methods'  => 'POST',
+      'callback' => 'logout',
+    )
+  );
+}
+
+function logout($request){
+
+	wp_logout();
+	  session_destroy();
+	  $response['api_status']=200;
+    	$response['data']="You are logged out successfully.";
+
+    	return $response;
+	}
+
+//end
+
+//login api
+    add_action( 'rest_api_init', 'register_api_hooks' );
+
+
+
+
+function register_api_hooks() {
+  register_rest_route(
+     'webanapi/v1', '/login',
+    array(
+      'methods'  => 'POST',
+      'callback' => 'login',
+    )
+  );
+}
+
+function login($request){
+    $creds = array();
+    $creds['user_login'] = $request["username"];
+    $creds['user_password'] =  $request["password"];
+    $creds['remember'] = true;
+
+
+    $user = wp_signon( $creds, false );
+
+    $response=array();
+
+
+    if ( is_wp_error($user) && (!isset(  $_SESSION['user_id']) || $_SESSION['user_id']==0))
+      { 
+
+
+      	 $_SESSION['user_id']=0;
+      	  $response['login']=0;
+
+      	$response['api_status']=401;
+      	$response['data']=$user->get_error_message();
+
+
+      }
+      elseif(!isset($_SESSION['user_id'])  || $_SESSION['user_id']==0){
+  $id = $user->ID;
+  $_SESSION['user_id']=$user->ID;
+    $meta = get_user_meta($id);
+    $response['user_id']=$id;
+    $response['api_status']=200;
+    $response['login']=1;
+    	$response['data']=$meta;
+  }
+  else
+  {
+  	
+  	 $id = $_SESSION['user_id'];
+    $meta = get_user_meta($id);
+    $response['user_id']=$id;
+    $response['api_status']=200;
+      $response['login']=1;
+
+    $response['data']=$meta;
+
+  }
+    return $response;
+}
+
+add_action( 'after_setup_theme', 'custom_login' );
+
+//sign up api
+
+add_action('rest_api_init', 'wp_rest_user_endpoints');
+/**
+ * Register a new user
+ *
+ * @param  WP_REST_Request $request Full details about the request.
+ * @return array $args.
+ **/
+function wp_rest_user_endpoints($request) {
+  /**
+   * Handle Register User request.
+   */
+  register_rest_route('webanapi/v1', 'users/register', array(
+    'methods' => 'POST',
+    'callback' => 'wc_rest_user_endpoint_handler',
+  ));
+}
+function wc_rest_user_endpoint_handler($request = null) {
+  $response = array();
+  $parameters = $request->get_json_params();
+  $username = sanitize_text_field($request["username"]);
+  $email = sanitize_text_field($request['email']);
+  $password = sanitize_text_field($request['password']);
+  $first_name = sanitize_text_field($request['first_name']);
+  $last_name = sanitize_text_field($request['last_name']);
+  $standard="standard";
+  $billing_first_name = sanitize_text_field($request['billing_first_name']);
+  $billing_last_name = sanitize_text_field($request['billing_last_name']);
+  $billing_city = sanitize_text_field($request['billing_city']);
+  $billing_phone = sanitize_text_field($request['billing_phone']);
+  $billing_email = sanitize_text_field($request['billing_email']);
+  $_bacs_bank_name = sanitize_text_field($request['_bacs_bank_name']);
+  $_bacs_bank_routing_number = sanitize_text_field($request['_bacs_bank_routing_number']);
+  $_bacs_bank_swift_code = sanitize_text_field($request['_bacs_bank_swift_code']);
+  $_bacs_bank_address = sanitize_text_field($request['_bacs_bank_address']);
+  $_bacs_bank_iban = sanitize_text_field($request['_bacs_bank_iban']);
+  $bank_account_num = sanitize_text_field($request['bank_account_num']);
+  $bank_account_name = sanitize_text_field($request['bank_account_name']);
+  $_bacs_beneficiary_address = sanitize_text_field($request['_bacs_beneficiary_address']);
+  $_bacs_beneficiary_phone = sanitize_text_field($request['_bacs_beneficiary_phone']);
+  $birthday = sanitize_text_field($request['birthday']);
+  $country = sanitize_text_field($request['country']);
+  $person_id = sanitize_text_field($request['person_id']);
+  $address_line = sanitize_text_field($request['address_line']);
+  
+
+
+
+  $error = new WP_Error();
+  if (empty($username)) {
+    $error->add(400, __("Username field 'username' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+  if (empty($email)) {
+    $error->add(401, __("Email field 'email' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+  if (empty($password)) {
+    $error->add(404, __("Password field 'password' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+ 
+  $user_id = username_exists($username);
+  if (!$user_id && email_exists($email) == false) {
+    $user_id = wp_create_user($username, $password, $email);
+    if (!is_wp_error($user_id)) {
+      // Ger User Meta Data (Sensitive, Password included. DO NOT pass to front end.)
+      $user = get_user_by('id', $user_id);
+      // $user->set_role($role);
+      $user->set_role('subscriber');
+      // WooCommerce specific code
+      if (class_exists('WooCommerce')) {
+        $user->set_role('customer');
+      }
+      // Ger User Data (Non-Sensitive, Pass to front end.)
+      $response['api_status'] = 200;
+      $response['data'] = __("User '" . $username . "' Registration was Successful", "wp-rest-user");
+    } else {
+      return $user_id;
+    }
+  } else {
+    $error->add(406, __("Username or Email already exists, please try 'Reset Password'", 'wp-rest-user'), array('status' => 400));
+    return $error;
+  }
+
+
+
+update_user_meta($user_id,'first_name',$first_name);
+update_user_meta($user_id,'last_name',$last_name);
+update_user_meta($user_id,'username',$username);
+update_user_meta($user_id,'email',$email);
+update_user_meta($user_id,'password',$password);
+update_user_meta($user_id,'user_account',$standard);
+update_user_meta($user_id,'billing_first_name',$billing_first_name);
+update_user_meta($user_id,'billing_last_name',$billing_last_name);
+update_user_meta($user_id,'billing_city',$billing_city);
+update_user_meta($user_id,'billing_phone',$billing_phone);
+update_user_meta($user_id,'billing_email',$billing_email);
+update_user_meta($user_id,'_bacs_bank_name',$_bacs_bank_name);
+update_user_meta($user_id,'_bacs_bank_routing_number',$_bacs_bank_routing_number);
+update_user_meta($user_id,'_bacs_bank_swift_code',$_bacs_bank_swift_code);
+update_user_meta($user_id,'_bacs_bank_address',$_bacs_bank_address);
+update_user_meta($user_id,'_bacs_bank_iban',$_bacs_bank_iban);
+update_user_meta($user_id,'_bacs_beneficiary_address',$_bacs_beneficiary_address);
+update_user_meta($user_id,'bank_account_num',$bank_account_num);
+update_user_meta($user_id,'bank_account_name',$bank_account_name);
+update_user_meta($user_id,'_bacs_beneficiary_phone',$_bacs_beneficiary_phone);
+update_user_meta($user_id,'birthday',$birthday);
+update_user_meta($user_id,'country',$country);
+update_user_meta($user_id,'person_id',$person_id);
+update_user_meta($user_id,'address_line',$address_line);
+
+
+
+
+
+  return new WP_REST_Response($response, 123);
+}
+
+
+add_action('rest_api_init', 'wp_rest_user_endpoints12');
+
+
+
+
+function wp_rest_user_endpoints12($request) {
+  /**
+   * Handle Register User request.
+   */
+  register_rest_route('webanapi/v1', 'users/proregister', array(
+    'methods' => 'POST',
+    'callback' => 'wc_rest_user_endpoint_handler12',
+  ));
+}
+function wc_rest_user_endpoint_handler12($request = null) {
+  $response = array();
+  $parameters = $request->get_json_params();
+  $username = sanitize_text_field($request["username"]);
+  $email = sanitize_text_field($request['email']);
+  $password = sanitize_text_field($request['password']);
+  $first_name = sanitize_text_field($request['first_name']);
+  $last_name = sanitize_text_field($request['last_name']);
+  $pro="pro";
+  $commercial_name= sanitize_text_field($request['commercial_name']);
+  $legal_name= sanitize_text_field($request['legal_name']);
+  $date_of_incorporation= sanitize_text_field($request['date_of_incorporation']);
+  $country_of_incorporation= sanitize_text_field($request['country_of_incorporation']);
+  $organization_id= sanitize_text_field($request['organization_id']);
+  $organization_address= sanitize_text_field($request['organization_address']);
+  $organization_address2= sanitize_text_field($request['organization_address2']);
+  $organization_phone= sanitize_text_field($request['organization_phone']);
+  $billing_first_name = sanitize_text_field($request['billing_first_name']);
+  $billing_last_name = sanitize_text_field($request['billing_last_name']);
+  $billing_city = sanitize_text_field($request['billing_city']);
+  $billing_phone = sanitize_text_field($request['billing_phone']);
+  $billing_email = sanitize_text_field($request['billing_email']);
+  $_bacs_bank_name = sanitize_text_field($request['_bacs_bank_name']);
+  $_bacs_bank_routing_number = sanitize_text_field($request['_bacs_bank_routing_number']);
+  $_bacs_bank_swift_code = sanitize_text_field($request['_bacs_bank_swift_code']);
+  $_bacs_bank_address = sanitize_text_field($request['_bacs_bank_address']);
+  $_bacs_bank_iban = sanitize_text_field($request['_bacs_bank_iban']);
+  $bank_account_num = sanitize_text_field($request['bank_account_num']);
+  $bank_account_name = sanitize_text_field($request['bank_account_name']);
+  $_bacs_beneficiary_address = sanitize_text_field($request['_bacs_beneficiary_address']);
+  $_bacs_beneficiary_phone = sanitize_text_field($request['_bacs_beneficiary_phone']);
+  $birthday = sanitize_text_field($request['birthday']);
+  $country = sanitize_text_field($request['country']);
+  $person_id = sanitize_text_field($request['person_id']);
+  $address_line = sanitize_text_field($request['address_line']);
+  
+
+
+
+  $error = new WP_Error();
+  if (empty($username)) {
+    $error->add(400, __("Username field 'username' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+  if (empty($email)) {
+    $error->add(401, __("Email field 'email' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+  if (empty($password)) {
+    $error->add(404, __("Password field 'password' is required.", 'wp-rest-user'), array('api_status' => 400));
+    return $error;
+  }
+ 
+  $user_id = username_exists($username);
+  if (!$user_id && email_exists($email) == false) {
+    $user_id = wp_create_user($username, $password, $email);
+    if (!is_wp_error($user_id)) {
+      // Ger User Meta Data (Sensitive, Password included. DO NOT pass to front end.)
+      $user = get_user_by('id', $user_id);
+      // $user->set_role($role);
+      $user->set_role('subscriber');
+      // WooCommerce specific code
+      if (class_exists('WooCommerce')) {
+        $user->set_role('customer');
+      }
+      // Ger User Data (Non-Sensitive, Pass to front end.)
+      $response['api_status'] = 200;
+      $response['data'] = __("User '" . $username . "' Registration was Successful", "wp-rest-user");
+    } else {
+      return $user_id;
+    }
+  } else {
+    $error->add(406, __("Username or Email already exists, please try 'Reset Password'", 'wp-rest-user'), array('status' => 400));
+    return $error;
+  }
+
+
+
+update_user_meta($user_id,'first_name',$first_name);
+update_user_meta($user_id,'last_name',$last_name);
+update_user_meta($user_id,'username',$username);
+update_user_meta($user_id,'email',$email);
+update_user_meta($user_id,'password',$password);
+update_user_meta($user_id,'user_account',$pro);
+update_user_meta($user_id,'commercial_name',$commercial_name);
+update_user_meta($user_id,'legal_name',$legal_name);
+update_user_meta($user_id,'date_of_incorporation',$date_of_incorporation);
+update_user_meta($user_id,'country_of_incorporation',$country_of_incorporation);
+update_user_meta($user_id,'organization_id',$organization_id);
+update_user_meta($user_id,'organization_address',$organization_address);
+update_user_meta($user_id,'organization_address2',$organization_address2);
+update_user_meta($user_id,'organization_phone',$organization_phone);
+update_user_meta($user_id,'billing_first_name',$billing_first_name);
+update_user_meta($user_id,'billing_last_name',$billing_last_name);
+update_user_meta($user_id,'billing_city',$billing_city);
+update_user_meta($user_id,'billing_phone',$billing_phone);
+update_user_meta($user_id,'billing_email',$billing_email);
+update_user_meta($user_id,'_bacs_bank_name',$_bacs_bank_name);
+update_user_meta($user_id,'_bacs_bank_routing_number',$_bacs_bank_routing_number);
+update_user_meta($user_id,'_bacs_bank_swift_code',$_bacs_bank_swift_code);
+update_user_meta($user_id,'_bacs_bank_address',$_bacs_bank_address);
+update_user_meta($user_id,'_bacs_bank_iban',$_bacs_bank_iban);
+update_user_meta($user_id,'_bacs_beneficiary_address',$_bacs_beneficiary_address);
+update_user_meta($user_id,'bank_account_num',$bank_account_num);
+update_user_meta($user_id,'bank_account_name',$bank_account_name);
+update_user_meta($user_id,'_bacs_beneficiary_phone',$_bacs_beneficiary_phone);
+update_user_meta($user_id,'birthday',$birthday);
+update_user_meta($user_id,'country',$country);
+update_user_meta($user_id,'person_id',$person_id);
+update_user_meta($user_id,'address_line',$address_line);
+
+
+
+
+
+  return new WP_REST_Response($response, 123);
+}
