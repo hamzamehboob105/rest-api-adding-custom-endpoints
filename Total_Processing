@@ -1,0 +1,164 @@
+ <?php 
+header('Content-type: application/json');
+
+define( 'WP_USE_THEMES', false );
+
+/** Loads the WordPress Environment and Template */
+require __DIR__ . '/wp-load.php';
+
+
+
+
+function request() {
+
+	$woo_wallet_balance_to_add = $_POST['woo_wallet_balance_to_add'];
+$woo_wallet_balance_to_add_webn = $_POST['woo_wallet_balance_to_add_webn'];
+$card_number = $_POST['card_number'];
+$card_name = $_POST['card_name'];
+$expiry_date = $_POST['expiry_date'];
+$optional_year = $_POST['optional_year'];
+$user_id = $_POST['current_user'];
+$security_code = $_POST['security_code'];
+
+
+	$url = "https://eu-test.oppwa.com/v1/payments";
+    $data = "entityId=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ."&amount=" .$woo_wallet_balance_to_add_webn. "&currency=USD" ."&paymentBrand=VISA" ."&paymentType=DB" ."&card.number=".$card_number ."&card.holder=".$card_name ."&card.expiryMonth=".$expiry_date ."&card.expiryYear=".$optional_year ."&card.cvv=".$security_code;
+
+	$ch = curl_init();
+	curl_setopt($ch, CURLOPT_URL, $url);
+	curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+                   'Authorization:Bearer xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=='));
+	curl_setopt($ch, CURLOPT_POST, 1);
+	curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+	curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);// this should be set to true in production
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	$responseData = curl_exec($ch);
+	if(curl_errno($ch)) {
+		return curl_error($ch);
+	}
+	curl_close($ch);
+	return $responseData;
+}
+
+
+
+
+$responseData = request();
+$jsondecodeddata=json_decode($responseData);
+
+  
+
+
+ 
+
+if($jsondecodeddata->result->code=="000.100.110")
+{
+
+
+$woo_wallet_balance_to_add_webn = $_POST['woo_wallet_balance_to_add_webn'];
+$url = get_site_url()."/wp-json/wc/v3/orders";
+
+$curl = curl_init($url);
+curl_setopt($curl, CURLOPT_URL, $url);
+curl_setopt($curl, CURLOPT_POST, true);
+curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+$headers = array(
+   "Content-Type: application/json",
+   "Authorization: Basic xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+);
+curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
+//billing details
+$user_id=$_POST['current_user'];
+	
+	
+ 			$first_name=get_user_meta( $user_id, 'first_name', true);
+            $last_name=get_user_meta( $user_id, 'last_name', true);
+            $birthday=get_user_meta( $user_id, 'birthday', true);
+            $billing_first_name=get_user_meta( $user_id, 'billing_first_name', true);
+            $billing_last_name=get_user_meta( $user_id, 'billing_last_name', true);
+            $billing_address_1=get_user_meta( $user_id, 'billing_address_1', true);
+            $billing_address_2=get_user_meta( $user_id, 'billing_address_2', true);
+            $billing_city=get_user_meta( $user_id, 'billing_city', true);
+            $billing_state=get_user_meta( $user_id, 'billing_state', true);
+            $billing_postcode=get_user_meta( $user_id, 'billing_postcode', true);
+            $billing_country=get_user_meta( $user_id, 'billing_country', true);
+            $billing_email=get_user_meta( $user_id, 'billing_email', true);
+            $billing_phone=get_user_meta( $user_id, 'billing_phone', true);
+
+
+//shipping detail
+
+            $shipping_first_name=get_user_meta( $user_id, 'shipping_first_name', true);
+            $shipping_last_name=get_user_meta( $user_id, 'shipping_last_name', true);
+            $shipping_address_1=get_user_meta( $user_id, 'shipping_address_1', true);
+            $shipping_address_2=get_user_meta( $user_id, 'shipping_address_2', true);
+            $shipping_city=get_user_meta( $user_id, 'shipping_city', true);
+            $shipping_state=get_user_meta( $user_id, 'shipping_state', true);
+            $shipping_postcode=get_user_meta( $user_id, 'shipping_postcode', true);
+            $shipping_country=get_user_meta( $user_id, 'shipping_country', true);
+
+      
+
+
+$data1 = array(
+    "payment_method" => "wc_cardsv2",
+    "payment_method_title" => "Total Processing",
+    "set_paid" => true,
+    "customer_id" => $user_id,
+    "billing" => array(
+        "first_name" => $billing_first_name,
+        "last_name" => $billing_last_name,
+        "address_1" => $billing_address_1,
+        "address_2" => $billing_address_2,
+        "city" => $billing_city,
+        "state" => $billing_state,
+        "postcode" => $billing_postcode,
+        "country" => $billing_country,
+        "email" => $billing_email,
+        "phone" => $billing_phone
+    ),
+    "shipping" => array(
+        "first_name" => $shipping_first_name,
+        "last_name" => $shipping_last_name,
+        "address_1" => $shipping_address_1,
+        "address_2" => $shipping_address_2,
+        "city" => $shipping_city,
+        "state" => $shipping_state,
+        "postcode" => $shipping_postcode,
+        "country" => $shipping_country
+    ),
+    "line_items" => array(
+        array(
+            "product_id" => 6583,
+            "quantity" => 1,
+            "subtotal" => "1000",
+            "total" => "1000"
+        )
+    )
+);
+ $data = json_encode($data1); 
+
+curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
+
+//for debug only!
+curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+
+$resp = curl_exec($curl);
+
+curl_close($curl);
+
+$json_decode=json_decode($resp);
+
+echo $json_decode->id;
+
+die;
+
+
+
+
+}
+  
+
+ ?> 
